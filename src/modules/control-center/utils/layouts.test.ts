@@ -177,4 +177,35 @@ describe("applyD3HierarchicalLayout", () => {
     expect(yOf(placed, "postgres") - yOf(placed, "http")).toBe(policy);
     expect(yOf(placed, "databases") - yOf(placed, "servers")).toBe(3 * policy);
   });
+
+  it("orders the drilled network view's policies but keeps its plain stack", () => {
+    const nodes: Node[] = [node("src", "groupNode")];
+    const edges: Edge[] = [];
+    [
+      ["p1", "r1"],
+      ["p2", "r2"],
+      ["p3", "r1"],
+      ["p4", "r2"],
+    ].forEach(([policy, resource]) => {
+      nodes.push(node(policy, "policyNode"));
+      if (!nodes.some((n) => n.id === resource))
+        nodes.push(node(resource, "resourceNode"));
+      edges.push(edge("src", policy), edge(policy, resource));
+    });
+    const placed = applyD3HierarchicalLayout(
+      nodes,
+      edges,
+      400,
+      120,
+      "network",
+      DEFAULT_LAYOUT_CONFIG,
+    ).updatedNodes;
+    const ys = ["p1", "p2", "p3", "p4"]
+      .map((id) => yOf(placed, id))
+      .sort((a, b) => a - b);
+
+    expect(crossings(placed, edges)).toBe(0);
+    // No blocks: one even pitch, as before.
+    expect(new Set(ys.slice(1).map((y, i) => y - ys[i])).size).toBe(1);
+  });
 });

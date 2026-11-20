@@ -4,8 +4,9 @@ import {
   applyDraftBuildLayout,
   resolveNodeOverlaps,
 } from "./draft-build-layout";
+import { DEFAULT_LAYOUT_CONFIG } from "./graph-builder";
 import { FRAME_GRID_BASE_X } from "./helpers";
-import { nodeYNudge } from "./layouts";
+import { applyD3HierarchicalLayout, nodeYNudge } from "./layouts";
 
 const makeNode = (
   id: string,
@@ -175,5 +176,50 @@ describe("applyDraftBuildLayout", () => {
 
     expect(at(updatedNodes, "src").y).toBe(nodeYNudge("peerNode"));
     expect(at(updatedNodes, "dst").y).toBe(0);
+  });
+
+  it("places shared destinations and a fan-out exactly where the live view does", () => {
+    const routes: [string, string[]][] = [
+      ["p1", ["A"]],
+      ["p2", ["B"]],
+      ["p3", ["A"]],
+      ["p4", ["C"]],
+      ["p5", ["B"]],
+      ["p6", ["D", "E", "F"]],
+      ["p7", ["A"]],
+    ];
+    const live: Node[] = [];
+    const liveEdges: Edge[] = [];
+    const draft: Node[] = [
+      node("src", "groupNode", { group: { name: "src" } }),
+    ];
+    const draftEdges: Edge[] = [];
+    routes.forEach(([p, dests]) => {
+      live.push(policyNode(p, p));
+      draft.push(policyNode(p, p));
+      liveEdges.push(edge("select-peer-node", p));
+      draftEdges.push(edge("src", p));
+      dests.forEach((d) => {
+        if (!live.some((n) => n.id === d)) {
+          live.push(node(d, "destinationGroupNode"));
+          draft.push(node(d, "groupNode", { group: { name: d } }));
+        }
+        liveEdges.push(edge(p, d));
+        draftEdges.push(edge(p, d));
+      });
+    });
+
+    const liveNodes = applyD3HierarchicalLayout(
+      live,
+      liveEdges,
+      400,
+      120,
+      "peer",
+      DEFAULT_LAYOUT_CONFIG,
+    ).updatedNodes;
+    const draftNodes = applyDraftBuildLayout(draft, draftEdges).updatedNodes;
+    live.forEach(({ id }) =>
+      expect(at(draftNodes, id)).toEqual(at(liveNodes, id)),
+    );
   });
 });
