@@ -8,6 +8,7 @@ import {
 } from "@/modules/control-center/utils/helpers";
 import {
   applyD3HierarchicalLayout,
+  arrangePolicyColumns,
   nodeYNudge,
   POLICY_COLUMN_Y_OFFSET,
 } from "@/modules/control-center/utils/layouts";
@@ -183,6 +184,13 @@ export const applyDraftBuildLayout = (
       n.position = { x: DEST_COLUMN_X, y: -colHeight / 2 + i * 100 };
     });
   }
+
+  // Re-run against the restacked destinations, like live does.
+  if (!carriesFrames)
+    arrangePolicyColumns(updatedNodes, updatedEdges, {
+      policy: DEFAULT_LAYOUT_CONFIG.policy.spacing,
+      outer: DEFAULT_LAYOUT_CONFIG.destinationGroup.spacing,
+    });
 
   // Staggered so the policy edges flow through the gaps between frames.
   const frames = updatedNodes.filter((n) => isFrameNode(n));

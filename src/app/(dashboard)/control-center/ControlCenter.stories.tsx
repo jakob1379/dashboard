@@ -9,6 +9,7 @@ import {
   type Story,
   until,
 } from "@/storybook/core";
+import { GROUP, group } from "@/storybook/fixtures";
 import { settle } from "@/storybook/wait";
 
 const meta: Meta = {
@@ -60,6 +61,47 @@ export const UsersView = view("users");
 export const GroupsView = view("groups");
 export const NetworksView = view("networks");
 export const CloudPeersView: Story = { ...view("peers"), tags: ["cloud"] };
+
+/* Policies arrive interleaved by destination; the layout must group them so
+   no policy → destination edge crosses another. */
+const sharedDestinationPolicies = (
+  [
+    ["Developers SSH", GROUP.servers, ["22"]],
+    ["Developers HTTPS", GROUP.servers, ["443"]],
+    ["Postgres", GROUP.databases, ["5432"]],
+    ["Ops RDP", GROUP.servers, ["3389"]],
+    ["Redis", GROUP.databases, ["6379"]],
+    ["Kube API", GROUP.kubernetes, ["6443"]],
+    ["Servers to Servers", GROUP.servers, ["8080"]],
+  ] as const
+).map(([name, destination, ports], i) => ({
+  id: `pol-shared-${i}`,
+  name,
+  description: "",
+  enabled: true,
+  source_posture_checks: [],
+  rules: [
+    {
+      name,
+      description: "",
+      enabled: true,
+      action: "accept",
+      bidirectional: false,
+      protocol: "tcp",
+      ports: [...ports],
+      sources: [group(GROUP.all)],
+      destinations: [group(destination)],
+    },
+  ],
+}));
+
+export const PeersViewSharedDestinations: Story = {
+  ...view("peers"),
+  parameters: {
+    ...nav("/control-center", { tab: "peers" }),
+    api: { "GET /policies": sharedDestinationPolicies },
+  },
+};
 
 export const DraftModeChooser: Story = {
   play: async () => {
