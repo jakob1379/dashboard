@@ -285,7 +285,6 @@ const alignPolicyBlocks = (
     if (hasDests) destEnd = mid + hd / 2;
     return { b, mid, hp, hd };
   });
-  // The first block starts at 0, so this centres the stack on 0.
   const shift = Math.max(policyEnd, destEnd) / 2;
   placed.forEach(({ b, mid, hp, hd }) => {
     for (let k = b.pLo; k <= b.pHi; k++) {

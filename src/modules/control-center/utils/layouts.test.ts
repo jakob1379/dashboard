@@ -182,15 +182,18 @@ describe("applyD3HierarchicalLayout", () => {
     const nodes: Node[] = [node("src", "groupNode")];
     const edges: Edge[] = [];
     [
-      ["p1", "r1"],
-      ["p2", "r2"],
-      ["p3", "r1"],
-      ["p4", "r2"],
-    ].forEach(([policy, resource]) => {
-      nodes.push(node(policy, "policyNode"));
-      if (!nodes.some((n) => n.id === resource))
-        nodes.push(node(resource, "resourceNode"));
-      edges.push(edge("src", policy), edge(policy, resource));
+      ["p1", ["r1"]],
+      ["p2", ["r2"]],
+      ["p3", ["r1"]],
+      ["p4", ["r3", "r4", "r5"]],
+    ].forEach(([policy, resources]) => {
+      nodes.push(node(policy as string, "policyNode"));
+      edges.push(edge("src", policy as string));
+      (resources as string[]).forEach((resource) => {
+        if (!nodes.some((n) => n.id === resource))
+          nodes.push(node(resource, "resourceNode"));
+        edges.push(edge(policy as string, resource));
+      });
     });
     const placed = applyD3HierarchicalLayout(
       nodes,
@@ -205,7 +208,8 @@ describe("applyD3HierarchicalLayout", () => {
       .sort((a, b) => a - b);
 
     expect(crossings(placed, edges)).toBe(0);
-    // No blocks: one even pitch, as before.
-    expect(new Set(ys.slice(1).map((y, i) => y - ys[i])).size).toBe(1);
+    ys.slice(1).forEach((y, i) =>
+      expect(y - ys[i]).toBe(DEFAULT_LAYOUT_CONFIG.policy.spacing),
+    );
   });
 });
