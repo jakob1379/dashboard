@@ -34,7 +34,10 @@ describe("tweenLayout", () => {
   const at = (call: Node[], id: string) => call.find((n) => n.id === id)!;
 
   it("moves to the target in one commit, then drops the leaving nodes", () => {
-    const setNodes = vi.fn();
+    let state: Node[] = [];
+    const setNodes = vi.fn((v: Node[] | ((nodes: Node[]) => Node[])) => {
+      state = typeof v === "function" ? v(state) : v;
+    });
     tweenLayout(prev, next, anchors, setNodes);
 
     expect(pane.classList.contains("cc-layout-tween")).toBe(true);
@@ -52,7 +55,7 @@ describe("tweenLayout", () => {
     });
 
     vi.advanceTimersByTime(REVEAL);
-    expect(setNodes).toHaveBeenLastCalledWith(next);
+    expect(state).toEqual(next);
     expect(setNodes).toHaveBeenCalledTimes(2);
     expect(pane.classList.contains("cc-layout-tween")).toBe(false);
   });
@@ -64,6 +67,18 @@ describe("tweenLayout", () => {
     tweenLayout(next, prev, { enter: new Map(), exit: new Map() }, second);
     vi.advanceTimersByTime(REVEAL);
     expect(first).toHaveBeenCalledTimes(1);
-    expect(second).toHaveBeenLastCalledWith(prev);
+    expect(second.mock.calls[0][0]).toEqual(prev);
+  });
+
+  it("never overwrites nodes that replaced its own while it ran", () => {
+    let state: Node[] = [];
+    const setNodes = (v: Node[] | ((nodes: Node[]) => Node[])) => {
+      state = typeof v === "function" ? v(state) : v;
+    };
+    tweenLayout(prev, next, anchors, setNodes);
+    const other = [node("other-view", 0)];
+    setNodes(other);
+    vi.advanceTimersByTime(REVEAL);
+    expect(state).toBe(other);
   });
 });

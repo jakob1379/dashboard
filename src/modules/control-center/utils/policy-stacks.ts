@@ -13,7 +13,7 @@ export type PolicyStackData = {
 
 /**
  * Folds every run of at least POLICY_STACK_MIN policies that share the same
- * sources AND destinations into one `policyStackNode`. A run whose key is in
+ * sources, destinations AND direction into one `policyStackNode`. A run whose key is in
  * `expanded` stays unfolded and its top policy carries `data.stackKey`, so it
  * can fold the run back.
  */
@@ -37,8 +37,12 @@ export const collapsePolicyStacks = (
   const members = new Map<string, Node[]>();
   nodes.forEach((n) => {
     if (!policyIds.has(n.id)) return;
+    // Direction is part of the route: one edge can't draw both kinds.
+    const bidirectional = (n.data?.policy as Policy | undefined)?.rules?.[0]
+      ?.bidirectional;
     const key = [
       n.data?.side ?? "",
+      bidirectional ? "both" : "",
       [...new Set(ins.get(n.id))].sort().join(","),
       [...new Set(outs.get(n.id))].sort().join(","),
     ].join("|");
@@ -92,7 +96,7 @@ export const collapsePolicyStacks = (
     const id = `${source}->${target}`;
     const enabled =
       !!merged.get(id)?.data?.enabled || (e.data?.enabled ?? true) !== false;
-    merged.set(id, { ...e, id, source, target, data: { enabled } });
+    merged.set(id, { ...e, id, source, target, data: { ...e.data, enabled } });
   });
 
   return { nodes: stackedNodes, edges: [...kept, ...merged.values()] };
@@ -116,8 +120,8 @@ export const stackAnchors = (from: Node[], to: Node[]) => {
       n.type === "policyStackNode"
         ? memberIds(n)
         : n.type === "policyNode"
-          ? stacks.filter((s) => memberIds(s).includes(n.id)).map((s) => s.id)
-          : [];
+        ? stacks.filter((s) => memberIds(s).includes(n.id)).map((s) => s.id)
+        : [];
     const points = counterparts.flatMap((id) => pos.get(id) ?? []);
     if (points.length === 0) return;
     anchors.set(n.id, {

@@ -1,4 +1,9 @@
-import { type CSSProperties, useSyncExternalStore } from "react";
+import {
+  type CSSProperties,
+  type Dispatch,
+  type SetStateAction,
+  useSyncExternalStore,
+} from "react";
 import type { Node, ReactFlowInstance, Rect, Viewport } from "@xyflow/react";
 import {
   DEFAULT_MIN_ZOOM,
@@ -290,7 +295,7 @@ export function tweenLayout(
   prev: Node[],
   next: Node[],
   anchors: { enter: Map<string, XY>; exit: Map<string, XY> },
-  setNodes: (nodes: Node[]) => void,
+  setNodes: Dispatch<SetStateAction<Node[]>>,
 ) {
   cancelLayoutTween?.();
   const pane = document.querySelector<HTMLElement>(".react-flow");
@@ -327,18 +332,38 @@ export function tweenLayout(
     }),
     ...leaving.map((n) => ({
       ...n,
+      className: [n.className, "cc-node-leave"].filter(Boolean).join(" "),
       position: anchors.exit.get(n.id)!,
       style: { ...n.style, opacity: 0 },
       selectable: false,
     })),
   ]);
+  const clean = new Map(next.map((n) => [n.id, n]));
 
   const finish = () => {
     pane.classList.remove("cc-layout-tween");
     cancelLayoutTween = null;
   };
+  // Only undo this tween's own marks: anything set since (another view, a
+  // policy save, draft mode) stays as it is.
   const timer = setTimeout(() => {
-    setNodes(next);
+    setNodes((nodes) => {
+      const marked = (n: Node, mark: string) =>
+        n.className?.split(" ").includes(mark);
+      if (
+        !nodes.some(
+          (n) => marked(n, "cc-node-leave") || marked(n, "cc-node-enter"),
+        )
+      )
+        return nodes;
+      return nodes.flatMap((n) => {
+        if (marked(n, "cc-node-leave")) return [];
+        const target = clean.get(n.id);
+        return marked(n, "cc-node-enter") && target
+          ? [{ ...n, className: target.className, style: target.style }]
+          : [n];
+      });
+    });
     finish();
   }, REVEAL);
   cancelLayoutTween = () => {

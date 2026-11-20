@@ -40,6 +40,20 @@ const peerView = (routes: [string, string, boolean?][]) => {
   return { nodes, edges };
 };
 
+// Marks the given policies bidirectional, on the node and on its edges.
+const twoWay = (view: { nodes: Node[]; edges: Edge[] }, ids: string[]) => {
+  const rules = [{ bidirectional: true }];
+  view.nodes.forEach((n) => {
+    if (ids.includes(n.id.replace("policy-", "")))
+      n.data = { policy: { ...(n.data.policy as object), rules } };
+  });
+  view.edges.forEach((e) => {
+    const id = [e.source, e.target].find((x) => x.startsWith("policy-"));
+    if (id && ids.includes(id.replace("policy-", "")))
+      e.data = { ...e.data, policy: { rules } };
+  });
+};
+
 const stacks = (nodes: Node[]) =>
   nodes.filter((n) => n.type === "policyStackNode");
 
@@ -70,7 +84,10 @@ describe("collapsePolicyStacks", () => {
     expect(nodes.map((n) => n.id)).not.toContain("policy-ssh");
     expect(nodes.map((n) => n.id)).toContain("policy-postgres");
     expect(edges.filter((e) => e.source === stack.id)).toEqual([
-      expect.objectContaining({ target: "servers", data: { enabled: true } }),
+      expect.objectContaining({
+        target: "servers",
+        data: expect.objectContaining({ enabled: true }),
+      }),
     ]);
     expect(edges.filter((e) => e.target === stack.id)).toHaveLength(1);
     expect(edges.some((e) => e.target === "policy-ssh")).toBe(false);
@@ -143,5 +160,35 @@ describe("collapsePolicyStacks", () => {
       y: (y("policy-ssh") + y("policy-https") + y("policy-rdp")) / 3,
     });
     expect(stackAnchors(after, before).has("policy-postgres")).toBe(false);
+  });
+
+  it("keeps a stack's edges two-way when its policies are bidirectional", () => {
+    const view = peerView([
+      ["a", "servers"],
+      ["b", "servers"],
+      ["c", "servers"],
+    ]);
+    twoWay(view, ["a", "b", "c"]);
+    const { edges } = collapsePolicyStacks(view.nodes, view.edges, new Set());
+    expect(
+      edges.every(
+        (e) =>
+          (e.data?.policy as { rules: { bidirectional: boolean }[] })?.rules[0]
+            .bidirectional,
+      ),
+    ).toBe(true);
+  });
+
+  it("does not fold one-way and two-way policies together", () => {
+    const view = peerView([
+      ["a", "servers"],
+      ["b", "servers"],
+      ["c", "servers"],
+      ["d", "servers"],
+    ]);
+    twoWay(view, ["a", "b", "c"]);
+    const { nodes } = collapsePolicyStacks(view.nodes, view.edges, new Set());
+    expect(stacks(nodes)).toHaveLength(1);
+    expect(nodes.map((n) => n.id)).toContain("policy-d");
   });
 });

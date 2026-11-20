@@ -419,10 +419,12 @@ function FocusModePill() {
           group?: { name?: string };
           policy?: { name?: string };
           network?: { name?: string };
+          policies?: unknown[];
           name?: string;
         }
       | undefined;
     return (
+      (data?.policies && `${data.policies.length} policies`) ??
       data?.peer?.name ??
       data?.resource?.name ??
       data?.group?.name ??
