@@ -2,6 +2,7 @@
 
 import { SelectOption } from "@components/select/SelectDropdown";
 import useFetchApi from "@utils/api";
+import { e2eHooksEnabled } from "@utils/netbird";
 import {
   applyNodeChanges,
   Edge,
@@ -48,10 +49,10 @@ import {
   ensureParentsBeforeChildren,
   getIpPlaceholderFromRange,
 } from "@/modules/control-center/utils/helpers";
+import { type PolicyStacksRef } from "@/modules/control-center/utils/policy-stacks";
 import { NetworkAccessControlProvider } from "@/modules/networks/NetworkAccessControlProvider";
 import { NetworkProvider } from "@/modules/networks/NetworkProvider";
 import NetworkResourceModal from "@/modules/networks/resources/NetworkResourceModal";
-import { e2eHooksEnabled } from "@utils/netbird";
 
 interface CanvasState {
   nodes: Node[];
@@ -362,6 +363,7 @@ interface ControlCenterUIContextType {
     instant?: boolean,
   ) => void;
   onNodeClick: (event: React.MouseEvent, node: Node) => void;
+  toggleAllPolicyStacks: () => void;
 }
 
 const ControlCenterUIContext = createContext<ControlCenterUIContextType | null>(
@@ -428,9 +430,16 @@ export function ControlCenterUIProvider({
     // eslint-disable-next-line react-hooks/exhaustive-deps -- setters are stable, `canvas` re-identifies often
   }, [enteredNetwork]);
 
-  const { applySingleGroupView } = useGroupView();
-  const { applyPeerView } = usePeerView();
-  const { applyUserView } = useUserView();
+  // A ref, not state: the select nodes keep the view builders they were
+  // created with, so a captured value would go stale.
+  const policyStacks: PolicyStacksRef = useRef<ReadonlySet<string>>(new Set());
+  const setPolicyStacks = useCallback((expanded: ReadonlySet<string>) => {
+    policyStacks.current = expanded;
+  }, []);
+
+  const { applySingleGroupView } = useGroupView(policyStacks);
+  const { applyPeerView } = usePeerView(policyStacks);
+  const { applyUserView } = useUserView(policyStacks);
   const { applySingleNetworkView, applyNetworksView } = useNetworkView();
 
   const handlers = useSelectNodeHandlers({
@@ -441,6 +450,8 @@ export function ControlCenterUIProvider({
       applySingleNetworkView,
       applyNetworksView,
     },
+    policyStacks,
+    setPolicyStacks,
   });
 
   canvas.forceSingleGroupViewRef.current = handlers.forceSingleGroupView;
@@ -455,8 +466,10 @@ export function ControlCenterUIProvider({
       onViewChange: handlers.onViewChange,
       onNetworkSelect: handlers.onNetworkSelect,
       onNodeClick: handlers.onNodeClick,
+      toggleAllPolicyStacks: handlers.toggleAllPolicyStacks,
     }),
     [
+      handlers.toggleAllPolicyStacks,
       data.networkOptions,
       data.networks,
       canvas.selectedNetwork,

@@ -1,6 +1,7 @@
 import { Node, Rect, useReactFlow } from "@xyflow/react";
 import React, { useCallback, useEffect } from "react";
 import { useDialog } from "@/contexts/DialogProvider";
+import { useEventCallback } from "@/hooks/useEventCallback";
 import { Policy } from "@/interfaces/Policy";
 import { useCanvasState } from "@/modules/control-center/contexts/ControlCenterContext";
 import { useDestinationGroup } from "@/modules/control-center/contexts/ControlCenterContext";
@@ -13,6 +14,7 @@ import {
   drillOutOf,
   getNodeRect,
   isCanvasTransitionActive,
+  tweenLayout,
 } from "@/modules/control-center/utils/canvas-transition";
 import {
   getFirstGroup,
@@ -24,6 +26,10 @@ import {
   EMPTY_STATE_ZOOM,
   nodeYNudge,
 } from "@/modules/control-center/utils/layouts";
+import {
+  type PolicyStacksRef,
+  stackAnchors,
+} from "@/modules/control-center/utils/policy-stacks";
 
 interface UseSelectNodeHandlersParams {
   views: {
@@ -33,6 +39,9 @@ interface UseSelectNodeHandlersParams {
     applySingleNetworkView: (id: string, policiesOverride?: Policy[]) => any;
     applyNetworksView: (policiesOverride?: Policy[]) => any;
   };
+  // Expanded policy stacks of the graph on screen; the views read it.
+  policyStacks: PolicyStacksRef;
+  setPolicyStacks: (expanded: ReadonlySet<string>) => void;
 }
 
 interface EntityChangeConfig {
@@ -100,6 +109,8 @@ export function useSelectNodeHandlers(params: UseSelectNodeHandlersParams) {
   const { confirm } = useDialog();
 
   const {
+    policyStacks,
+    setPolicyStacks: storePolicyStacks,
     views: {
       applySingleGroupView,
       applyPeerView,
@@ -201,6 +212,8 @@ export function useSelectNodeHandlers(params: UseSelectNodeHandlersParams) {
     const { selectNodeId, dataKey, selectedValue, setSelected, applyView } =
       config;
     const shouldRecalculate = selectedValue !== id;
+    // Expanded stacks belong to the graph they were expanded in.
+    if (shouldRecalculate) storePolicyStacks(new Set());
 
     // Compute the layout ONCE, outside the setNodes updater: it's a synchronous
     // d3 simulation and React double-invokes updaters under StrictMode.
@@ -265,37 +278,48 @@ export function useSelectNodeHandlers(params: UseSelectNodeHandlersParams) {
       applyView: applyUserView,
     });
 
-  // Rebuilds the current live view from a policy PUT response, since the SWR
-  // cache still holds the pre-save list. Positions and the camera stay put.
-  const refreshLiveView = (updatedPolicy: Policy) => {
-    if (isDraft || !policies) return;
-    const patched = policies.map((p) =>
-      p.id === updatedPolicy.id ? updatedPolicy : p,
-    );
-
+  // Rebuilds the current live view in place, without moving the camera.
+  // With keepPositions the nodes the user already sees stay put; otherwise the
+  // scene glides into the new layout.
+  const rebuildLiveView = (livePolicies: Policy[], keepPositions: boolean) => {
     let result;
     switch (currentView) {
       case FlowView.GROUPS:
         if (selectedGroup)
-          result = applySingleGroupView(selectedGroup, patched);
+          result = applySingleGroupView(selectedGroup, livePolicies);
         break;
       case FlowView.PEERS:
-        if (selectedPeer) result = applyPeerView(selectedPeer, patched);
+        if (selectedPeer) result = applyPeerView(selectedPeer, livePolicies);
         break;
       case FlowView.USERS:
-        if (selectedUser) result = applyUserView(selectedUser, patched);
+        if (selectedUser) result = applyUserView(selectedUser, livePolicies);
         break;
       case FlowView.NETWORKS:
         result = selectedNetwork
-          ? applySingleNetworkView(selectedNetwork, patched)
-          : applyNetworksView(patched);
+          ? applySingleNetworkView(selectedNetwork, livePolicies)
+          : applyNetworksView(livePolicies);
         break;
     }
     if (!result) return;
 
+    if (!keepPositions) {
+      const prev = reactFlow.getNodes();
+      const next = [
+        ...(result.updatedNodes as Node[]),
+        ...prev.filter((n) => n.id.startsWith("select-")),
+      ];
+      setEdges(result.updatedEdges);
+      tweenLayout(
+        prev,
+        next,
+        { enter: stackAnchors(next, prev), exit: stackAnchors(prev, next) },
+        setNodes,
+      );
+      return;
+    }
+
     setNodes((prev) => {
-      // Keep positions of nodes the user already sees; only top-level ones,
-      // since frame children stay frame-relative.
+      // Only top-level ones, since frame children stay frame-relative.
       const prevPositions = new Map(
         prev.filter((n) => !n.parentId).map((n) => [n.id, n.position]),
       );
@@ -309,8 +333,43 @@ export function useSelectNodeHandlers(params: UseSelectNodeHandlersParams) {
     setEdges(result.updatedEdges);
   };
 
+  // Rebuilds the current live view from a policy PUT response, since the SWR
+  // cache still holds the pre-save list.
+  const refreshLiveView = (updatedPolicy: Policy) => {
+    if (isDraft || !policies) return;
+    rebuildLiveView(
+      policies.map((p) => (p.id === updatedPolicy.id ? updatedPolicy : p)),
+      true,
+    );
+  };
+
+  const setPolicyStacks = useEventCallback((expanded: ReadonlySet<string>) => {
+    storePolicyStacks(expanded);
+    if (!isDraft && policies) rebuildLiveView(policies, false);
+  });
+
+  const togglePolicyStack = useEventCallback((key: string) => {
+    const next = new Set(policyStacks.current);
+    if (!next.delete(key)) next.add(key);
+    setPolicyStacks(next);
+  });
+
+  // Expands every collapsed stack on screen, or collapses all when none is.
+  const toggleAllPolicyStacks = useEventCallback(() => {
+    const collapsed = reactFlow
+      .getNodes()
+      .filter((n) => n.type === "policyStackNode")
+      .map((n) => (n.data as { stackKey: string }).stackKey);
+    setPolicyStacks(
+      collapsed.length > 0
+        ? new Set([...policyStacks.current, ...collapsed])
+        : new Set(),
+    );
+  });
+
   const forceEntityView = (entityId: string, config: ForceEntityViewConfig) => {
     const { flowView, resetState, selectNode, applyView } = config;
+    storePolicyStacks(new Set());
 
     resetState();
     setCurrentView(flowView);
@@ -373,6 +432,7 @@ export function useSelectNodeHandlers(params: UseSelectNodeHandlersParams) {
   );
 
   const onViewChange = (view: FlowView) => {
+    storePolicyStacks(new Set());
     resetView();
     setSelectedDestinationGroup("");
     setSelectedPeer("");
@@ -400,6 +460,18 @@ export function useSelectNodeHandlers(params: UseSelectNodeHandlersParams) {
 
   const onNodeClick = useCallback(
     (_event: React.MouseEvent, _node: Node) => {
+      // A collapsed stack, or the fold-back control on an expanded one's top
+      // policy, toggles the stack instead of the node's own action.
+      const stackKey = (_node.data as { stackKey?: string })?.stackKey;
+      if (
+        stackKey &&
+        !highlightArmed &&
+        (_node.type === "policyStackNode" ||
+          (_event.target as Element).closest?.("[data-cc-stack-toggle]"))
+      ) {
+        togglePolicyStack(stackKey);
+        return;
+      }
       const isNetworkNode = _node.type === "networkNode";
       const isGroupNode =
         _node.type === "groupNode" ||
@@ -537,6 +609,7 @@ export function useSelectNodeHandlers(params: UseSelectNodeHandlersParams) {
       setSelectedPeerPanel,
       setLiveResourceEditor,
       confirm,
+      togglePolicyStack,
     ],
   );
 
@@ -673,6 +746,7 @@ export function useSelectNodeHandlers(params: UseSelectNodeHandlersParams) {
   return {
     forceSingleGroupView,
     refreshLiveView,
+    toggleAllPolicyStacks,
     onViewChange,
     onNetworkSelect,
     onNodeClick,

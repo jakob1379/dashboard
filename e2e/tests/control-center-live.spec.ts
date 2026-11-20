@@ -620,4 +620,66 @@ test.describe.serial("Control Center Live Mode @control-center", () => {
     await expect(page.getByText(/Focusing on/i)).not.toBeVisible();
     await expect(page.locator(".cc-dimmed")).toHaveCount(0);
   });
+
+  async function seedSameRoutePolicies(page: Page) {
+    await deletePoliciesBySubstring(page, PREFIX);
+    await deleteGroupsByPrefix(page, PREFIX);
+    const src = await createGroup(page, generateRandomName(PREFIX));
+    const dst = await createGroup(page, generateRandomName(PREFIX));
+    const policies = [];
+    for (let i = 0; i < 3; i++)
+      policies.push(
+        await createPolicy(page, generateRandomName(PREFIX), src.id, dst.id),
+      );
+    await openGroupView(page, src.name);
+    const stack = page.getByTestId("cc-policy-stack");
+    await expect(stack).toBeVisible({ timeout: 15_000 });
+    return { policies, stack };
+  }
+
+  test("Should collapse policies with the same route and expand them on click", async ({
+    dashboardAsOwner: page,
+  }) => {
+    const { policies, stack } = await seedSameRoutePolicies(page);
+    await expect(stack).toContainText("3 policies");
+    await expect(canvasNode(page, `policy-${policies[0].id}`)).toHaveCount(0);
+
+    await dismissBlockingOverlays(page);
+    await stack.click();
+    await expect(stack).toHaveCount(0);
+    for (const policy of policies)
+      await expect(canvasNode(page, `policy-${policy.id}`)).toBeVisible();
+  });
+
+  test("Should fold an expanded stack back with its Collapse control", async ({
+    dashboardAsOwner: page,
+  }) => {
+    const { policies, stack } = await seedSameRoutePolicies(page);
+
+    await dismissBlockingOverlays(page);
+    await stack.click();
+    const collapse = page.getByTestId("cc-policy-stack-collapse");
+    await expect(collapse).toHaveCount(1);
+    await collapse.click();
+
+    await expect(stack).toBeVisible();
+    await expect(canvasNode(page, `policy-${policies[0].id}`)).toHaveCount(0);
+    // The control folds the stack; it must not also open the policy editor.
+    await expect(page.getByRole("dialog")).toHaveCount(0);
+  });
+
+  test("Should expand and collapse every stack with the header toggle", async ({
+    dashboardAsOwner: page,
+  }) => {
+    const { policies, stack } = await seedSameRoutePolicies(page);
+    const toggle = page.getByTestId("cc-policy-stacks-toggle");
+
+    await toggle.click();
+    await expect(stack).toHaveCount(0);
+    for (const policy of policies)
+      await expect(canvasNode(page, `policy-${policy.id}`)).toBeVisible();
+
+    await toggle.click();
+    await expect(stack).toBeVisible();
+  });
 });

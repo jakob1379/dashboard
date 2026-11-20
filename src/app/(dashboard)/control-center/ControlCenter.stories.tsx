@@ -9,6 +9,7 @@ import {
   type Story,
   until,
 } from "@/storybook/core";
+import { GROUP, group } from "@/storybook/fixtures";
 import { settle } from "@/storybook/wait";
 
 const meta: Meta = {
@@ -60,6 +61,74 @@ export const UsersView = view("users");
 export const GroupsView = view("groups");
 export const NetworksView = view("networks");
 export const CloudPeersView: Story = { ...view("peers"), tags: ["cloud"] };
+
+/* Policies with the same source and destination fold into one stack:
+   Servers (4) and Databases (3) collapse, Kube API stays a single policy. */
+const stackedPolicies = (
+  [
+    ["Developers SSH", GROUP.servers, ["22"]],
+    ["Developers HTTPS", GROUP.servers, ["443"]],
+    ["Postgres", GROUP.databases, ["5432"]],
+    ["Ops RDP", GROUP.servers, ["3389"]],
+    ["Redis", GROUP.databases, ["6379"]],
+    ["MySQL", GROUP.databases, ["3306"]],
+    ["Kube API", GROUP.kubernetes, ["6443"]],
+    ["Servers to Servers", GROUP.servers, ["8080"]],
+  ] as const
+).map(([name, destination, ports], i) => ({
+  id: `pol-stacked-${i}`,
+  name,
+  description: "",
+  enabled: true,
+  source_posture_checks: [],
+  rules: [
+    {
+      name,
+      description: "",
+      enabled: true,
+      action: "accept",
+      bidirectional: false,
+      protocol: "tcp",
+      ports: [...ports],
+      sources: [group(GROUP.all)],
+      destinations: [group(destination)],
+    },
+  ],
+}));
+
+export const PeersViewPolicyStacks: Story = {
+  ...view("peers"),
+  parameters: {
+    ...nav("/control-center", { tab: "peers" }),
+    api: { "GET /policies": stackedPolicies },
+  },
+};
+
+/* Clicking a stack expands only that block, with a Collapse control on its
+   top policy. */
+export const PeersViewPolicyStackExpanded: Story = {
+  ...PeersViewPolicyStacks,
+  play: async () => {
+    await liveReady();
+    const [servers] = await screen.findAllByTestId("cc-policy-stack");
+    await click(servers);
+    await byTestId("cc-policy-stack-collapse");
+    await canvasReady();
+  },
+};
+
+export const PeersViewPolicyStacksAllExpanded: Story = {
+  ...PeersViewPolicyStacks,
+  play: async () => {
+    await liveReady();
+    await click(byTestId("cc-policy-stacks-toggle"));
+    await until(() => {
+      if (document.querySelector('[data-testid="cc-policy-stack"]'))
+        throw new Error("a stack is still collapsed");
+    });
+    await canvasReady();
+  },
+};
 
 export const DraftModeChooser: Story = {
   play: async () => {

@@ -1,6 +1,7 @@
 import { SmallBadge } from "@components/ui/SmallBadge";
 import { cn } from "@utils/helpers";
 import { Handle, type Node, Position, useConnection } from "@xyflow/react";
+import { ChevronsDownUpIcon } from "lucide-react";
 import * as React from "react";
 import { useIsContextMenuTarget } from "@/modules/control-center/contexts/ControlCenterContext";
 import { useDraftMode } from "@/modules/control-center/draft/DraftModeContext";
@@ -12,6 +13,7 @@ import { Policy } from "@/interfaces/Policy";
 type PolicyNode = Node<
   {
     policy: Policy;
+    stackKey?: string;
   },
   "policyNode"
 >;
@@ -38,6 +40,19 @@ export const PolicyNode = ({ data, id }: PolicyNode) => {
         showHalo && "ring-2 ring-sky-500",
       )}
     >
+      {data.stackKey && (
+        <button
+          type={"button"}
+          data-cc-stack-toggle
+          data-testid={"cc-policy-stack-collapse"}
+          className={
+            "absolute -top-6 left-2 flex items-center gap-1 text-[0.65rem] text-nb-gray-400 hover:text-nb-gray-200 transition-colors"
+          }
+        >
+          <ChevronsDownUpIcon size={12} />
+          Collapse
+        </button>
+      )}
       <div className={"flex items-center justify-center"}>
         <div
           className={cn(

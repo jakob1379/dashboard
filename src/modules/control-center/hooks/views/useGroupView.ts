@@ -2,21 +2,25 @@ import { Edge, Node } from "@xyflow/react";
 import { orderBy, sortBy } from "lodash";
 import { Group } from "@/interfaces/Group";
 import { Policy } from "@/interfaces/Policy";
+import { useControlCenterData } from "@/modules/control-center/hooks/useControlCenterData";
 import {
-  addNode,
   addEdge,
+  addNode,
   DEFAULT_LAYOUT_CONFIG,
 } from "@/modules/control-center/utils/graph-builder";
+import { withFreshGroupCounts } from "@/modules/control-center/utils/helpers";
 import { applyD3HierarchicalLayout } from "@/modules/control-center/utils/layouts";
+import {
+  collapsePolicyStacks,
+  type PolicyStacksRef,
+} from "@/modules/control-center/utils/policy-stacks";
 import {
   addAgentNetworkProviderNodes,
   useAgentNetworkOverlay,
 } from "./agent-network-overlay";
 import { addDestinationResourceNodes, ViewResult } from "./types";
-import { useControlCenterData } from "@/modules/control-center/hooks/useControlCenterData";
-import { withFreshGroupCounts } from "@/modules/control-center/utils/helpers";
 
-export function useGroupView() {
+export function useGroupView(policyStacks: PolicyStacksRef) {
   const { policies, peers, networks, networkResources, groups, isDataReady } =
     useControlCenterData();
   const agentNetwork = useAgentNetworkOverlay();
@@ -118,7 +122,6 @@ export function useGroupView() {
             data: { group: withFreshGroupCounts(destination, groups) },
             position: { x: 0, y: 0 },
           });
-
         } else {
           allNodes.forEach((n) => {
             if (n.id === destinationNodeId) {
@@ -154,9 +157,14 @@ export function useGroupView() {
       agentNetwork,
     );
 
-    return applyD3HierarchicalLayout(
+    const stacked = collapsePolicyStacks(
       allNodes,
       allEdges,
+      policyStacks.current,
+    );
+    return applyD3HierarchicalLayout(
+      stacked.nodes,
+      stacked.edges,
       400,
       120,
       "group",

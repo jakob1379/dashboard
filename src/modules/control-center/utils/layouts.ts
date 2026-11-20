@@ -61,11 +61,15 @@ export const applyD3HierarchicalLayout = (
   // the left, stamping those policy nodes with data.side === "left".
   const policyNodes = simulationNodes.filter(
     (n) =>
-      (n.type === "policyNode" || n.type === "agentPolicyNode") &&
+      (n.type === "policyNode" ||
+        n.type === "agentPolicyNode" ||
+        n.type === "policyStackNode") &&
       n.data?.side !== "left",
   );
   const leftPolicyNodes = simulationNodes.filter(
-    (n) => n.type === "policyNode" && n.data?.side === "left",
+    (n) =>
+      (n.type === "policyNode" || n.type === "policyStackNode") &&
+      n.data?.side === "left",
   );
   const networkNodes = simulationNodes.filter((n) => n.type === "networkNode");
   const resourceNodes = simulationNodes.filter(

@@ -625,6 +625,32 @@
     transition: opacity 120ms ease;
 }
 
+/* Policy stacks folding/unfolding (tweenLayout): the browser glides nodes with
+   the reveal's ease-out (easeOutHalf). New nodes enter from their stack via
+   `translate`, which composes with React Flow's own `transform`. Edges, drawn at
+   the target positions, sit the move out. */
+.react-flow.cc-layout-tween .react-flow__node {
+    transition:
+        transform 450ms cubic-bezier(0.5, 1, 0.89, 1),
+        opacity 450ms cubic-bezier(0.5, 1, 0.89, 1);
+}
+.react-flow__node.cc-node-enter {
+    animation: cc-node-enter 450ms cubic-bezier(0.5, 1, 0.89, 1) both;
+}
+@keyframes cc-node-enter {
+    from {
+        translate: var(--cc-enter-x) var(--cc-enter-y);
+        opacity: 0;
+    }
+}
+.react-flow .react-flow__edges {
+    transition: opacity 200ms ease-out;
+}
+.react-flow.cc-layout-tween .react-flow__edges {
+    opacity: 0;
+    transition: none;
+}
+
 /* Just-assigned network frame: an expanding box-shadow, so no layout shift. */
 @keyframes cc-node-pulse {
     0%   { box-shadow: 0 0 0 0 rgba(56, 189, 248, 0.55); }

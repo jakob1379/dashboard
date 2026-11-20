@@ -4,9 +4,9 @@ import { useEffect, useRef } from "react";
 import { Group } from "@/interfaces/Group";
 import { Network, NetworkResource } from "@/interfaces/Network";
 import { useAIProviders } from "@/modules/agent-network/AIProvidersProvider";
-import { useDraftChangeset } from "@/modules/control-center/draft/DraftChangesetContext";
 import { useCanvasState } from "@/modules/control-center/contexts/ControlCenterContext";
 import { useControlCenterPolicy } from "@/modules/control-center/contexts/ControlCenterPolicyModals";
+import { useDraftChangeset } from "@/modules/control-center/draft/DraftChangesetContext";
 import {
   CanvasTool,
   useDraftMode,
@@ -187,8 +187,14 @@ export function useDraft() {
 
       const livePolicyIds = new Set(
         liveNodes
-          .filter((n) => n.type === "policyNode")
-          .map((n) => (n.data as any)?.policy?.id)
+          .flatMap((n) =>
+            n.type === "policyNode"
+              ? [(n.data as any)?.policy]
+              : n.type === "policyStackNode"
+              ? (n.data as any)?.policies ?? []
+              : [],
+          )
+          .map((p) => p?.id)
           .filter(Boolean),
       );
       // The all-networks live view draws no policy nodes, but the frames'
