@@ -68,6 +68,11 @@ describe("tweenLayout", () => {
     vi.advanceTimersByTime(REVEAL);
     expect(first).toHaveBeenCalledTimes(1);
     expect(second.mock.calls[0][0]).toEqual(prev);
+    let state = second.mock.calls[0][0] as Node[];
+    second.mock.calls.slice(1).forEach(([v]) => {
+      state = typeof v === "function" ? v(state) : v;
+    });
+    expect(state).toEqual(prev);
   });
 
   it("never overwrites nodes that replaced its own while it ran", () => {
@@ -80,5 +85,22 @@ describe("tweenLayout", () => {
     setNodes(other);
     vi.advanceTimersByTime(REVEAL);
     expect(state).toBe(other);
+  });
+
+  it("keeps changes made to an entering node while it ran", () => {
+    let state: Node[] = [];
+    const setNodes = (v: Node[] | ((nodes: Node[]) => Node[])) => {
+      state = typeof v === "function" ? v(state) : v;
+    };
+    tweenLayout(prev, next, anchors, setNodes);
+    setNodes((nodes) =>
+      nodes.map((n) =>
+        n.id === "a" ? { ...n, style: { ...n.style, opacity: 0.5 } } : n,
+      ),
+    );
+    vi.advanceTimersByTime(REVEAL);
+    expect(at(state, "a")).toMatchObject({ style: { opacity: 0.5 } });
+    expect(at(state, "a").className).toBeUndefined();
+    expect(at(state, "a").style).not.toHaveProperty("--cc-enter-x");
   });
 });

@@ -4,13 +4,14 @@ import * as React from "react";
 
 type Props = {
   active?: boolean;
+  stacked?: boolean;
   label: React.ReactNode;
   aside: React.ReactNode;
 } & React.HTMLAttributes<HTMLDivElement>;
 
-// The policy pill shared by a single policy and a stack of them.
 export const PolicyPill = ({
   active,
+  stacked,
   label,
   aside,
   className,
@@ -22,6 +23,8 @@ export const PolicyPill = ({
     className={cn(
       "relative group/node bg-nb-gray-940 hover:bg-nb-gray-930 hover:border-nb-gray-800 cursor-pointer border border-nb-gray-850 rounded-full flex justify-between transition-all",
       !active && "opacity-60",
+      stacked &&
+        "shadow-[0_3px_0_-1px_var(--color-nb-gray-940),0_3px_0_0_var(--color-nb-gray-850)]",
       className,
     )}
   >

@@ -37,7 +37,6 @@ export const collapsePolicyStacks = (
   const members = new Map<string, Node[]>();
   nodes.forEach((n) => {
     if (!policyIds.has(n.id)) return;
-    // Direction is part of the route: one edge can't draw both kinds.
     const bidirectional = (n.data?.policy as Policy | undefined)?.rules?.[0]
       ?.bidirectional;
     const key = [

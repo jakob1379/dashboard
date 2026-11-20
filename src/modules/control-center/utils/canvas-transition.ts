@@ -1,10 +1,10 @@
+import type { Node, ReactFlowInstance, Rect, Viewport } from "@xyflow/react";
 import {
   type CSSProperties,
   type Dispatch,
   type SetStateAction,
   useSyncExternalStore,
 } from "react";
-import type { Node, ReactFlowInstance, Rect, Viewport } from "@xyflow/react";
 import {
   DEFAULT_MIN_ZOOM,
   EMPTY_STATE_ZOOM,
@@ -338,14 +338,11 @@ export function tweenLayout(
       selectable: false,
     })),
   ]);
-  const clean = new Map(next.map((n) => [n.id, n]));
 
   const finish = () => {
     pane.classList.remove("cc-layout-tween");
     cancelLayoutTween = null;
   };
-  // Only undo this tween's own marks: anything set since (another view, a
-  // policy save, draft mode) stays as it is.
   const timer = setTimeout(() => {
     setNodes((nodes) => {
       const marked = (n: Node, mark: string) =>
@@ -358,10 +355,23 @@ export function tweenLayout(
         return nodes;
       return nodes.flatMap((n) => {
         if (marked(n, "cc-node-leave")) return [];
-        const target = clean.get(n.id);
-        return marked(n, "cc-node-enter") && target
-          ? [{ ...n, className: target.className, style: target.style }]
-          : [n];
+        if (!marked(n, "cc-node-enter")) return [n];
+        const {
+          "--cc-enter-x": _x,
+          "--cc-enter-y": _y,
+          ...style
+        } = (n.style ?? {}) as Record<string, unknown>;
+        const className = n.className
+          ?.split(" ")
+          .filter((c) => c !== "cc-node-enter")
+          .join(" ");
+        return [
+          {
+            ...n,
+            className: className || undefined,
+            style: Object.keys(style).length > 0 ? style : undefined,
+          },
+        ];
       });
     });
     finish();

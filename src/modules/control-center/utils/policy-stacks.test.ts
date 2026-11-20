@@ -40,7 +40,6 @@ const peerView = (routes: [string, string, boolean?][]) => {
   return { nodes, edges };
 };
 
-// Marks the given policies bidirectional, on the node and on its edges.
 const twoWay = (view: { nodes: Node[]; edges: Edge[] }, ids: string[]) => {
   const rules = [{ bidirectional: true }];
   view.nodes.forEach((n) => {
