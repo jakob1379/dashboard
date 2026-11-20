@@ -3,9 +3,10 @@ import { GroupNode } from "@/modules/control-center/nodes/GroupNode";
 import { NetworkNode } from "@/modules/control-center/nodes/NetworkNode";
 import { PeerNode } from "@/modules/control-center/nodes/PeerNode";
 import { PolicyNode } from "@/modules/control-center/nodes/PolicyNode";
+import { PolicyStackNode } from "@/modules/control-center/nodes/PolicyStackNode";
 import { ProviderNode } from "@/modules/control-center/nodes/ProviderNode";
-import { ResourceNode } from "@/modules/control-center/nodes/ResourceNode";
 import { ResourceGroupNode } from "@/modules/control-center/nodes/ResourceGroupNode";
+import { ResourceNode } from "@/modules/control-center/nodes/ResourceNode";
 import { SelectGroupNode } from "@/modules/control-center/nodes/SelectGroupNode";
 import { SelectPeerNode } from "@/modules/control-center/nodes/SelectPeerNode";
 import { SelectUserNode } from "@/modules/control-center/nodes/SelectUserNode";
@@ -19,6 +20,7 @@ export enum NodeType {
   ResourceNode = "resourceNode",
   ResourceGroupNode = "resourceGroupNode",
   PolicyNode = "policyNode",
+  PolicyStackNode = "policyStackNode",
   PeerNode = "peerNode",
   SourcePeerNode = "sourcePeerNode",
   ExpandedGroupPeer = "expandedGroupPeer",
@@ -38,6 +40,7 @@ export const NODE_TYPES = {
   [NodeType.ResourceNode]: ResourceNode,
   [NodeType.ResourceGroupNode]: ResourceGroupNode,
   [NodeType.PolicyNode]: PolicyNode,
+  [NodeType.PolicyStackNode]: PolicyStackNode,
   [NodeType.PeerNode]: PeerNode,
   [NodeType.SourcePeerNode]: PeerNode,
   [NodeType.ExpandedGroupPeer]: PeerNode,

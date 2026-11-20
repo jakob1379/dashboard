@@ -785,7 +785,10 @@ export function focusWorthyIds(
   edges: { source: string; target: string }[],
 ): Set<string> {
   const policyCount = nodes.filter(
-    (n) => n.type === "policyNode" || n.type === "agentPolicyNode",
+    (n) =>
+      n.type === "policyNode" ||
+      n.type === "agentPolicyNode" ||
+      n.type === "policyStackNode",
   ).length;
   if (policyCount < 2) return new Set();
   // Focus only pays off when there is something to dim away.

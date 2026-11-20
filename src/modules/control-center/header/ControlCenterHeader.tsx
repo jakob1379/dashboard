@@ -15,6 +15,8 @@ import { useReactFlow } from "@xyflow/react";
 import { sortBy } from "lodash";
 import {
   ArrowLeftIcon,
+  ChevronsDownUpIcon,
+  ChevronsUpDownIcon,
   CircleMinusIcon,
   CirclePlusIcon,
   FocusIcon,
@@ -417,10 +419,12 @@ function FocusModePill() {
           group?: { name?: string };
           policy?: { name?: string };
           network?: { name?: string };
+          policies?: unknown[];
           name?: string;
         }
       | undefined;
     return (
+      (data?.policies && `${data.policies.length} policies`) ??
       data?.peer?.name ??
       data?.resource?.name ??
       data?.group?.name ??
@@ -490,10 +494,42 @@ function FocusModePill() {
   );
 }
 
+// Expands every collapsed policy stack on the canvas, or folds them all back.
+function PolicyStacksToggle() {
+  const { isDraft } = useDraftMode();
+  const { toggleAllPolicyStacks } = useControlCenterUI();
+  const nodes = useStructuralNodes({ enabled: !isDraft });
+  const hasCollapsed = nodes.some((n) => n.type === "policyStackNode");
+  const hasExpanded = nodes.some(
+    (n) => n.type === "policyNode" && n.data?.stackKey,
+  );
+  if (!hasCollapsed && !hasExpanded) return null;
+
+  const label = hasCollapsed ? "Expand all policies" : "Collapse all policies";
+  return (
+    <Button
+      variant={"secondary"}
+      size={"xs"}
+      className={"h-[39px] px-3"}
+      aria-label={label}
+      title={label}
+      onClick={toggleAllPolicyStacks}
+      data-testid={"cc-policy-stacks-toggle"}
+    >
+      {hasCollapsed ? (
+        <ChevronsUpDownIcon size={14} />
+      ) : (
+        <ChevronsDownUpIcon size={14} />
+      )}
+    </Button>
+  );
+}
+
 function HeaderTopRight() {
   return (
     <div className={"ml-auto shrink-0 pointer-events-auto"}>
       <div className={"flex items-center gap-3"}>
+        <PolicyStacksToggle />
         <DraftModeSwitcher />
       </div>
     </div>

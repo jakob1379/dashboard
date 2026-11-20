@@ -1,5 +1,10 @@
-import { useSyncExternalStore } from "react";
 import type { Node, ReactFlowInstance, Rect, Viewport } from "@xyflow/react";
+import {
+  type CSSProperties,
+  type Dispatch,
+  type SetStateAction,
+  useSyncExternalStore,
+} from "react";
 import {
   DEFAULT_MIN_ZOOM,
   EMPTY_STATE_ZOOM,
@@ -276,3 +281,103 @@ export const drillOutOf = (
       : undefined,
     ...options,
   });
+
+type XY = { x: number; y: number };
+let cancelLayoutTween: (() => void) | null = null;
+
+// Glides the scene from its current layout to `next` with the reveal's
+// ease-out (`.cc-layout-tween` and `.cc-node-enter` in globals.css). The
+// browser runs the motion, so React commits twice: once to the target (nodes
+// that stay transition there, new ones play an entrance from their `enter`
+// anchor, leaving ones head for `exit` and fade), once to drop what left.
+// Edges are drawn at the target positions, so they sit the move out.
+export function tweenLayout(
+  prev: Node[],
+  next: Node[],
+  anchors: { enter: Map<string, XY>; exit: Map<string, XY> },
+  setNodes: Dispatch<SetStateAction<Node[]>>,
+) {
+  cancelLayoutTween?.();
+  const pane = document.querySelector<HTMLElement>(".react-flow");
+  if (!pane) {
+    setNodes(next);
+    return;
+  }
+
+  const before = new Map(prev.map((n) => [n.id, n]));
+  // Without the measured size React Flow hides a node until it re-measures.
+  next = next.map((n) => {
+    const measured = before.get(n.id)?.measured;
+    return measured ? { ...n, measured } : n;
+  });
+  const nextIds = new Set(next.map((n) => n.id));
+  const leaving = prev.filter(
+    (n) => !nextIds.has(n.id) && anchors.exit.has(n.id),
+  );
+
+  pane.classList.add("cc-layout-tween");
+  setNodes([
+    ...next.map((n) => {
+      const from = !before.has(n.id) && anchors.enter.get(n.id);
+      if (!from) return n;
+      return {
+        ...n,
+        className: [n.className, "cc-node-enter"].filter(Boolean).join(" "),
+        style: {
+          ...n.style,
+          "--cc-enter-x": `${from.x - n.position.x}px`,
+          "--cc-enter-y": `${from.y - n.position.y}px`,
+        } as CSSProperties,
+      };
+    }),
+    ...leaving.map((n) => ({
+      ...n,
+      className: [n.className, "cc-node-leave"].filter(Boolean).join(" "),
+      position: anchors.exit.get(n.id)!,
+      style: { ...n.style, opacity: 0 },
+      selectable: false,
+    })),
+  ]);
+
+  const finish = () => {
+    pane.classList.remove("cc-layout-tween");
+    cancelLayoutTween = null;
+  };
+  const timer = setTimeout(() => {
+    setNodes((nodes) => {
+      const marked = (n: Node, mark: string) =>
+        n.className?.split(" ").includes(mark);
+      if (
+        !nodes.some(
+          (n) => marked(n, "cc-node-leave") || marked(n, "cc-node-enter"),
+        )
+      )
+        return nodes;
+      return nodes.flatMap((n) => {
+        if (marked(n, "cc-node-leave")) return [];
+        if (!marked(n, "cc-node-enter")) return [n];
+        const {
+          "--cc-enter-x": _x,
+          "--cc-enter-y": _y,
+          ...style
+        } = (n.style ?? {}) as Record<string, unknown>;
+        const className = n.className
+          ?.split(" ")
+          .filter((c) => c !== "cc-node-enter")
+          .join(" ");
+        return [
+          {
+            ...n,
+            className: className || undefined,
+            style: Object.keys(style).length > 0 ? style : undefined,
+          },
+        ];
+      });
+    });
+    finish();
+  }, REVEAL);
+  cancelLayoutTween = () => {
+    clearTimeout(timer);
+    finish();
+  };
+}
